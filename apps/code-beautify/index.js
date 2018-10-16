@@ -28,8 +28,19 @@ new Vue({
 
     methods: {
         format: function () {
-            let txtResult = '';
-            let beautifierFunc = () => {
+            if(!this.sourceContent.trim()) {
+                return alert('内容为空，不需要美化处理！');
+            }
+
+            let beauty = (result) => {
+                result = result.replace(/>/g, '&gt;').replace(/</g, '&lt;');
+                result = '<pre class="language-' + this.selectedType.toLowerCase() + ' line-numbers"><code>' + result + '</code></pre>';
+                this.resultContent = result;
+
+                // 代码高亮
+                this.$nextTick(() => {
+                    Prism.highlightAll();
+                });
             };
 
             switch (this.selectedType) {
@@ -47,35 +58,24 @@ new Vue({
                         unescape_strings: false,
                         wrap_line_length: "120"
                     };
-                    beautifierFunc = Tarp.require('./beautify.js').js_beautify;
-                    txtResult = beautifierFunc(this.sourceContent, opts);
+                    Tarp.require('./beautify.js').js_beautify(this.sourceContent, opts, result => beauty(result));
                     break;
                 case 'CSS':
-                    beautifierFunc = Tarp.require('./beautify-css.js').css_beautify;
-                    txtResult = beautifierFunc(this.sourceContent);
+                    Tarp.require('./beautify-css.js').css_beautify(this.sourceContent, {}, result => beauty(result));
                     break;
                 case 'HTML':
-                    beautifierFunc = Tarp.require('./beautify-html.js').html_beautify;
-                    txtResult = beautifierFunc(this.sourceContent);
+                    Tarp.require('./beautify-html.js');
+                    beauty(html_beautify(this.sourceContent));
                     break;
                 case 'SQL':
                     Tarp.require('./vkbeautify.js');
-                    txtResult = vkbeautify.sql(this.sourceContent, 4);
+                    beauty(vkbeautify.sql(this.sourceContent, 4));
                     break;
                 default:
                     Tarp.require('./vkbeautify.js');
-                    txtResult = vkbeautify.xml(this.sourceContent);
+                    beauty(vkbeautify.xml(this.sourceContent));
             }
 
-            txtResult = txtResult.replace(/>/g, '&gt;').replace(/</g, '&lt;');
-            txtResult = '<pre class="brush: ' + this.selectedType.toLowerCase() + ';toolbar:false;">' + txtResult + '</pre>';
-            this.resultContent = txtResult;
-
-            // 代码高亮
-            this.$nextTick(() => {
-                SyntaxHighlighter.defaults['toolbar'] = false;
-                SyntaxHighlighter.highlight();
-            })
         }
     }
 });

@@ -7,12 +7,14 @@ var BgPageInstance = (function () {
     let MSG_TYPE = Tarp.require('../static/js/msg_type');
     let Settings = Tarp.require('../options/settings');
     let Network = Tarp.require('../background/network');
+    let PageCapture = Tarp.require('../page-capture/capture-api')(MSG_TYPE);
 
     let feHelper = {
         codeStandardMgr: {},
         ajaxDebuggerMgr: {},
         csDetectIntervals: [],
-        manifest: chrome.runtime.getManifest()
+        manifest: chrome.runtime.getManifest(),
+        notifyTimeoutId: -1
     };
     let devToolsDetected = false;
 
@@ -70,13 +72,19 @@ var BgPageInstance = (function () {
      * @config {string} message 内容
      */
     let notifyText = function (options) {
+        let notifyId = 'fehleper-notify-id';
+
+        clearTimeout(feHelper.notifyTimeoutId);
+        if (options.closeImmediately) {
+            return chrome.notifications.clear(notifyId);
+        }
+
         if (!options.icon) {
             options.icon = "static/img/fe-48.png";
         }
         if (!options.title) {
             options.title = "温馨提示";
         }
-        let notifyId = 'fehleper-notify-id';
         chrome.notifications.create(notifyId, {
             type: 'basic',
             title: options.title,
@@ -84,7 +92,7 @@ var BgPageInstance = (function () {
             message: options.message
         });
 
-        setTimeout(() => {
+        feHelper.notifyTimeoutId = setTimeout(() => {
             chrome.notifications.clear(notifyId);
         }, parseInt(options.autoClose || 3000, 10));
 
@@ -151,24 +159,34 @@ var BgPageInstance = (function () {
      */
     let _openFileAndRun = function (tab, file, txt) {
         chrome.tabs.query({windowId: chrome.windows.WINDOW_ID_CURRENT}, function (tabs) {
-            let isOpened = false;
-            let tabId;
-            let reg = new RegExp("^chrome.*/" + file + "/index.html$", "i");
-            for (let i = 0, len = tabs.length; i < len; i++) {
-                if (reg.test(tabs[i].url)) {
-                    isOpened = true;
-                    tabId = tabs[i].id;
-                    break;
+
+            Settings.getOptsFromBgPage((opts) => {
+                let isOpened = false;
+                let tabId;
+
+                // 允许在新窗口打开
+                if (opts['FORBID_OPEN_IN_NEW_TAB']) {
+                    let reg = new RegExp("^chrome.*/" + file + "/index.html$", "i");
+                    for (let i = 0, len = tabs.length; i < len; i++) {
+                        if (reg.test(tabs[i].url)) {
+                            isOpened = true;
+                            tabId = tabs[i].id;
+                            break;
+                        }
+                    }
                 }
-            }
-            if (!isOpened) {
-                chrome.tabs.create({
-                    url: '' + file + '/index.html',
-                    active: true
-                }, _tabUpdatedCallback(file, txt));
-            } else {
-                chrome.tabs.update(tabId, {highlighted: true}, _tabUpdatedCallback(file, txt));
-            }
+
+                if (!isOpened) {
+                    chrome.tabs.create({
+                        url: '' + file + '/index.html',
+                        active: true
+                    }, _tabUpdatedCallback(file, txt));
+                } else {
+                    chrome.tabs.update(tabId, {highlighted: true}, _tabUpdatedCallback(file, txt));
+                }
+
+            });
+
         });
     };
 
@@ -233,6 +251,10 @@ var BgPageInstance = (function () {
                     case MSG_TYPE.FCP_HELPER_DETECT:
                         _doFcpDetect(tab);
                         break;
+                    //将当前网页转为图片
+                    case MSG_TYPE.PAGE_CAPTURE:
+                        PageCapture.full(tab);
+                        break;
                     //查看网页加载时间
                     case MSG_TYPE.SHOW_PAGE_LOAD_TIME:
                         _getPageWpoInfo();
@@ -254,12 +276,12 @@ var BgPageInstance = (function () {
     let _createContextMenu = function () {
         _removeContextMenu();
         feHelper.contextMenuId = chrome.contextMenus.create({
-            title: "FeHelper",
+            title: "FeHelper工具",
             contexts: ['page', 'selection', 'editable', 'link', 'image'],
             documentUrlPatterns: ['http://*/*', 'https://*/*', 'file://*/*']
         });
         chrome.contextMenus.create({
-            title: "二维码生成",
+            title: "▣  二维码生成",
             contexts: ['page', 'selection', 'editable', 'link', 'image'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -285,7 +307,7 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "二维码解码",
+            title: "◈  二维码解码",
             contexts: ['image'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -300,7 +322,7 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "图片转Base64",
+            title: "♛  图片转Base64",
             contexts: ['image'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -314,7 +336,7 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "字符串编解码",
+            title: "♨  字符串编解码",
             contexts: ['page', 'selection', 'editable'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -335,7 +357,7 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "JSON格式化",
+            title: "★  JSON格式化",
             contexts: ['page', 'selection', 'editable'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -355,7 +377,7 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "代码格式化",
+            title: "☂  代码格式化",
             contexts: ['page', 'selection', 'editable'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
@@ -376,11 +398,25 @@ var BgPageInstance = (function () {
             parentId: feHelper.contextMenuId
         });
         chrome.contextMenus.create({
-            title: "页面取色器",
+            title: "☀  页面取色器",
             contexts: ['page', 'selection', 'editable'],
             parentId: feHelper.contextMenuId,
             onclick: function (info, tab) {
                 _showColorPicker();
+            }
+        });
+
+        chrome.contextMenus.create({
+            type: 'separator',
+            contexts: ['all'],
+            parentId: feHelper.contextMenuId
+        });
+        chrome.contextMenus.create({
+            title: "✂  网页滚动截屏",
+            contexts: ['all'],
+            parentId: feHelper.contextMenuId,
+            onclick: function (info, tab) {
+                PageCapture.full(tab);
             }
         });
     };
@@ -513,17 +549,58 @@ var BgPageInstance = (function () {
         });
     };
 
-    // 当前页面是否进行自动格式化
+    //判断是否可以针对json页面进行自动格式化
     let _jsonAutoFormatRequest = function () {
         Settings.getOptsFromBgPage(opts => {
-            chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+            opts.JSON_PAGE_FORMAT && chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
                 chrome.tabs.sendMessage(tabs[0].id, {
                     type: MSG_TYPE.JSON_PAGE_FORMAT,
-                    canIDoIt: opts.JSON_PAGE_FORMAT
+                    options: {MAX_JSON_KEYS_NUMBER: opts.MAX_JSON_KEYS_NUMBER}
                 });
             });
         });
     };
+
+    //判断是否可以针对js、css自动检测格式化
+    let _jsCssAutoDetectRequest = function () {
+
+        chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+
+            let tab = tabs[0];
+
+            chrome.tabs.executeScript(tab.id, {
+                code: '(' + (() => {
+
+                    let ext = location.pathname.substring(location.pathname.lastIndexOf(".") + 1).toLowerCase();
+                    let fileType = ({'js': 'javascript', 'css': 'css'})[ext];
+                    let contentType = document.contentType.toLowerCase();
+
+                    if (!fileType) {
+                        if (/\/javascript$/.test(contentType)) {
+                            fileType = 'javascript';
+                        } else if (/\/css$/.test(contentType)) {
+                            fileType = 'css';
+                        }
+                    } else if (contentType === 'text/html') {
+                        fileType = undefined;
+                    }
+
+                    return fileType;
+                }).toString() + ')()'
+            }, function (fileType) {
+                if (fileType[0] === 'javascript' || fileType[0] === 'css') {
+                    Settings.getOptsFromBgPage(opts => {
+                        opts.JS_CSS_PAGE_BEAUTIFY && chrome.tabs.sendMessage(tab.id, {
+                            type: MSG_TYPE.JS_CSS_PAGE_BEAUTIFY,
+                            content: fileType[0]
+                        });
+                    });
+                }
+            });
+
+        });
+    };
+
 
     /**
      * 接收来自content_scripts发来的消息
@@ -541,13 +618,17 @@ var BgPageInstance = (function () {
                 //管理右键菜单
                 _createOrRemoveContextMenu();
                 notifyText({
-                    message: '恭喜，FeHelper配置修改成功!',
+                    message: '配置已生效，请继续使用!',
                     autoClose: 2000
                 });
             }
-            //判断是否可以进行自动格式化
+            //判断是否可以针对json页面进行自动格式化
             else if (request.type === MSG_TYPE.JSON_PAGE_FORMAT_REQUEST) {
                 _jsonAutoFormatRequest();
+            }
+            //判断是否可以针对js、css自动检测格式化
+            else if (request.type === MSG_TYPE.JS_CSS_PAGE_BEAUTIFY_REQUEST) {
+                _jsCssAutoDetectRequest();
             }
             //保存当前网页加载时间
             else if (request.type === MSG_TYPE.CALC_PAGE_LOAD_TIME) {
@@ -564,6 +645,10 @@ var BgPageInstance = (function () {
             // console show
             else if (request.type === MSG_TYPE.AJAX_DEBUGGER_CONSOLE) {
                 _ajaxDebugger(request);
+            }
+            // 打开设置页
+            else if (request.type === MSG_TYPE.OPEN_OPTIONS_PAGE) {
+                chrome.runtime.openOptionsPage();
             }
 
             // ===========================以下为编码规范检测====start==================================
@@ -637,11 +722,12 @@ var BgPageInstance = (function () {
                     chrome.runtime.openOptionsPage();
                     break;
                 case 'update':
-                    notifyText({
-                        title: '恭喜',
-                        message: '您的FeHelper已更新至 v' + feHelper.manifest.version,
-                        autoClose: 3000
-                    });
+                    setTimeout(() => {
+                        chrome.browserAction.setBadgeText({text: '+++1'});
+                        setTimeout(() => {
+                            chrome.browserAction.setBadgeText({text: ''});
+                        }, 1500);
+                    }, 1500);
                     break;
             }
         });
@@ -675,8 +761,10 @@ var BgPageInstance = (function () {
     return {
         init: _init,
         runHelper: _runHelper,
+        notify: notifyText,
         showColorPicker: _showColorPicker,
-        tellMeAjaxDbgSwitch: _tellDevToolsDbgSwitchOn
+        tellMeAjaxDbgSwitch: _tellDevToolsDbgSwitchOn,
+        getCapturedData: PageCapture.getCapturedData
     };
 })();
 

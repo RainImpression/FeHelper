@@ -61,14 +61,21 @@ const MSG_TYPE = {
     QR_CODE: 'qr-code',
     //代码美化
     CODE_BEAUTIFY: 'code-beautify',
+    JS_CSS_PAGE_BEAUTIFY:'JS_CSS_PAGE_BEAUTIFY',
+    JS_CSS_PAGE_BEAUTIFY_REQUEST:'JS_CSS_PAGE_BEAUTIFY_REQUEST',
     //代码压缩
     CODE_COMPRESS: 'code-compress',
     // 时间转换
     TIME_STAMP: 'timestamp',
     // 图片base64
     IMAGE_BASE64: 'image-base64',
+    // 随机密码生成
+    RANDOM_PASSWORD:'password',
     // 二维码解码
     QR_DECODE: 'qr-decode',
+
+    // JSON比对
+    JSON_COMPARE:'json-diff',
     // JSON页面自动格式化
     JSON_PAGE_FORMAT: 'JSON_PAGE_FORMAT',
     JSON_PAGE_FORMAT_REQUEST: 'JSON_PAGE_FORMAT_REQUEST',
@@ -81,8 +88,15 @@ const MSG_TYPE = {
     AJAX_DEBUGGER_CONSOLE: "ajax-debugger-console",
     AJAX_DEBUGGER_SWITCH: "ajax-debugger-switch",
 
+    HTML_TO_MARKDOWN: "html2markdown",
+    PAGE_CAPTURE:'page-capture',
+    PAGE_CAPTURE_SCROLL:"page_capture_scroll",
+    PAGE_CAPTURE_CAPTURE:"page_capture_capture",
+
     // dev tools页面
-    DEV_TOOLS: 'dev-tools'
+    DEV_TOOLS: 'dev-tools',
+
+    OPEN_OPTIONS_PAGE:'open-options-page'
 };
 
 (typeof module === 'object') ? module.exports = MSG_TYPE : '';

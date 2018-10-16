@@ -34,6 +34,7 @@ new Vue({
             }
         },
         stampToLocale: function () {
+            Tarp.require('../static/js/utils');
             if (this.txtSrcStamp.length === 0) {
                 alert('请先填写你需要转换的Unix时间戳');
                 return;
@@ -42,10 +43,12 @@ new Vue({
                 alert('请输入合法的Unix时间戳');
                 return;
             }
-            Tarp.require('../static/js/utils');
             this.txtDesDate = (new Date(parseInt(this.txtSrcStamp, 10) * 1000)).format('yyyy-MM-dd HH:mm:ss');
         },
         localeToStamp: function () {
+            if(this.txtLocale && !/\s\d+:\d+:\d+/.test(this.txtLocale)) {
+                this.txtLocale += ' 00:00:00';
+            }
             let locale = Date.parse(this.txtLocale);
             if (isNaN(locale)) {
                 alert('请输入合法的时间格式，如：2014-04-01 10:01:01，或：2014-01-01');
